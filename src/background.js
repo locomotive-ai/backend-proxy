@@ -199,10 +199,147 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener(() => {
   // 只在安装或更新时执行一次初始化
   initialize();
+  
+  // 设置全局选择文本事件监听
+  setupGlobalSelectionListener();
 });
 
 // 监听右键菜单点击事件
 chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
+
+// 设置全局选择文本事件监听器
+function setupGlobalSelectionListener() {
+  // 监听标签页更新，用于检测文本选择
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // 只在页面完成加载时执行
+    if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
+      // 检查该网站是否在预设列表中
+      const isPresetSite = isPresetWebsite(tab.url);
+      
+      // 如果不是预设网站，则注入选择文本监听器
+      if (!isPresetSite) {
+        try {
+          // 注入一个轻量级的选择文本监听器，而不是完整的内容脚本
+          chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            function: setupTextSelectionListenerInPage,
+          }).catch(err => console.debug('注入选择监听器失败 (可能已存在):', err));
+        } catch (e) {
+          console.debug('无法注入选择监听器:', e);
+        }
+      }
+    }
+  });
+  
+  // 监听来自内容页面的消息
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 处理文本选择消息
+    if (message.action === 'textSelected' && sender.tab) {
+      // 尝试注入完整的内容脚本并显示悬浮图标
+      injectContentScript(sender.tab.id, message.text);
+      // 立即响应以避免连接关闭错误
+      sendResponse({ received: true });
+    }
+    // 继续处理其他消息...
+  });
+}
+
+// 在页面上设置文本选择监听器的函数
+function setupTextSelectionListenerInPage() {
+  // 防止重复添加
+  if (window._textSelectionListenerAdded) return;
+  window._textSelectionListenerAdded = true;
+  
+  // 使用防抖函数限制事件触发频率
+  function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  }
+  
+  // 处理文本选择事件
+  const handleTextSelection = debounce(() => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 10) {
+      // 向扩展发送消息
+      chrome.runtime.sendMessage({
+        action: 'textSelected',
+        text: selection.toString().trim()
+      }).catch(err => console.debug('发送选择消息失败:', err));
+    }
+  }, 300);
+  
+  // 添加多种事件监听，确保能捕获各种文本选择方式
+  document.addEventListener('mouseup', handleTextSelection);
+  document.addEventListener('keyup', (e) => {
+    // 当按下Shift+方向键或Ctrl+A等可能导致文本选择的组合键时
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      handleTextSelection();
+    }
+  });
+  
+  console.debug('AutoReplyGen: 文本选择监听器已添加');
+}
+
+// 注入完整内容脚本的函数
+function injectContentScript(tabId, selectedText) {
+  // 检查标签页是否存在
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError) {
+      console.warn('标签页不存在:', chrome.runtime.lastError.message);
+      return;
+    }
+    
+    // 首先尝试发送消息，检查内容脚本是否已注入
+    chrome.tabs.sendMessage(tabId, { action: 'checkContentScriptLoaded' }, response => {
+      // 如果收到响应，说明内容脚本已加载
+      if (!chrome.runtime.lastError && response && response.loaded) {
+        console.debug('内容脚本已加载，直接发送显示图标请求');
+        chrome.tabs.sendMessage(tabId, { 
+          action: 'showFloatingIcon',
+          selectedText: selectedText
+        }).catch(err => console.debug('发送显示图标请求失败:', err));
+      } else {
+        // 否则注入完整内容脚本
+        console.debug('内容脚本未加载，开始注入...');
+        chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ['contentScript.js']
+        }).then(() => {
+          // 等待内容脚本初始化
+          setTimeout(() => {
+            // 发送消息显示悬浮图标
+            chrome.tabs.sendMessage(tabId, { 
+              action: 'showFloatingIcon',
+              selectedText: selectedText
+            }).catch(err => console.debug('内容脚本注入后，发送显示图标请求失败:', err));
+          }, 300);
+        }).catch(err => {
+          console.error('注入内容脚本失败:', err);
+        });
+      }
+    });
+  });
+}
+
+// 检查是否是预设网站
+function isPresetWebsite(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname.includes('google.com') || 
+           hostname.includes('outlook.com') || 
+           hostname.includes('yahoo.com') || 
+           hostname.includes('instagram.com') || 
+           hostname.includes('facebook.com') || 
+           hostname.includes('twitter.com') || 
+           hostname.includes('tiktok.com');
+  } catch (e) {
+    console.error('解析URL失败:', e);
+    return false;
+  }
+}
 
 // 处理获取平台信息的请求
 async function handleGetPlatformInfo(tab) {

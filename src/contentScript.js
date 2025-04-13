@@ -2167,34 +2167,68 @@ function showNotification(message) {
   }, 3000);
 }
 
-// 监听消息
+// 标记内容脚本已加载
+window._contentScriptLoaded = true;
+
+// 处理来自后台脚本的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // 立即响应以保持连接
-  try {
-    sendResponse({ received: true });
-  } catch (error) {
-    console.warn('发送立即响应时出错:', error);
-  }
-  
   console.log('内容脚本收到消息:', message);
   
-  if (message.action === 'generateReply') {
-    // 处理右键菜单的生成回复请求
+  // 检查内容脚本加载状态
+  if (message.action === 'checkContentScriptLoaded') {
+    sendResponse({ loaded: true });
+    return true;
+  }
+  
+  // 显示悬浮图标
+  if (message.action === 'showFloatingIcon' && message.selectedText) {
+    // 设置全局选中文本
+    selectedText = message.selectedText;
+    
+    // 获取选中文本的位置
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      
+      // 显示悬浮图标
+      showFloatingIcon(rect);
+    } else {
+      // 如果无法获取选择范围，则在页面中间显示图标
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      
+      const dummyRect = {
+        left: viewportWidth / 2,
+        top: viewportHeight / 2,
+        right: viewportWidth / 2,
+        bottom: viewportHeight / 2
+      };
+      
+      showFloatingIcon(dummyRect);
+    }
+    
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  // 生成回复
+  if (message.action === "generateReply") {
     console.log('收到生成回复请求:', message);
     
-    // 保存选中的文本
-    selectedText = message.selectedText || '';
+    // 如果提供了选中文本，则使用它
+    if (message.selectedText) {
+      selectedText = message.selectedText;
+    }
     
     // 显示回复面板
     showReplyPanel();
-  } 
-  else if (message.action === 'platformInfoResult') {
-    // 处理从后台脚本返回的平台信息
-    console.log('收到平台信息结果:', message.platformInfo);
-    if (message.platformInfo) {
-      currentPlatform = message.platformInfo.type || 'other';
-    }
+    
+    sendResponse({ success: true });
+    return true;
   }
+  
+  // ... 处理其他消息 ...
   
   // 返回true表示会异步发送响应
   return true;
