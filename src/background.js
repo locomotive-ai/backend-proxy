@@ -18,7 +18,7 @@ function createContextMenu() {
   try {
     chrome.contextMenus.create({
       id: "smart-reply",
-      title: "智能回复生成",
+      title: "AutoReplyGen",
       contexts: ["selection"]
     }, () => {
       // 检查是否有错误

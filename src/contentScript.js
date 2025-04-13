@@ -1256,7 +1256,18 @@ async function showReplyPanel() {
       
       // 获取浏览器语言
       const browserLanguage = navigator.language || navigator.userLanguage || 'zh-CN';
-      const defaultTargetLang = browserLanguage.split('-')[0] || 'zh';
+      // 默认目标语言处理：确保中文用户可以轻松获得中文翻译
+      let defaultTargetLang;
+      
+      // 如果用户浏览器首选语言是中文，默认目标语言也设为中文
+      if (browserLanguage.toLowerCase().startsWith('zh')) {
+        defaultTargetLang = 'zh';
+      } else {
+        // 否则根据浏览器语言设置默认目标语言
+        defaultTargetLang = browserLanguage.split('-')[0] || 'zh';
+      }
+      
+      console.log('默认目标语言设置为:', defaultTargetLang, '浏览器语言:', browserLanguage);
       
       const translatedTextLabel = document.createElement('div');
       translatedTextLabel.style.cssText = `
@@ -1343,9 +1354,30 @@ async function showReplyPanel() {
           
           console.log(`翻译文本长度: ${actualText.length}, 内容: ${actualText.substring(0, 20)}${actualText.length > 20 ? '...' : ''}`);
           
+          // 检查特殊情况：当界面显示了生成的回复内容而非翻译内容时
+          if (panel.querySelector('#reply-content-textarea') && 
+              panel.querySelector('#reply-content-textarea').value && 
+              !translatedTextBox.hasAttribute('data-translated')) {
+            console.log('检测到界面显示了回复内容而非翻译内容，尝试强制翻译');
+            
+            // 强制设置合适的目标语言
+            if (browserLanguage.toLowerCase().startsWith('zh')) {
+              // 为中文用户设置中文
+              for (let i = 0; i < languageSelector.options.length; i++) {
+                if (languageSelector.options[i].value === 'zh') {
+                  languageSelector.selectedIndex = i;
+                  break;
+                }
+              }
+            }
+          }
+          
           // 调用API翻译
           const translationResult = await translateSelectedText(actualText, targetLang);
           translatedTextBox.textContent = translationResult || '翻译失败，请重试';
+          
+          // 标记已翻译
+          translatedTextBox.setAttribute('data-translated', 'true');
         } catch (error) {
           console.error('翻译出错:', error);
           translatedTextBox.textContent = '翻译失败: ' + (error.message || '未知错误');
@@ -2343,30 +2375,47 @@ async function translateSelectedText(text, targetLang) {
     // 因为语言检测可能不太准确，尤其是对短文本
     if (sourceLang === targetLang && !isVeryShortText) {
       console.log('源语言与目标语言相同，无需翻译');
-      return `文本已经是${getLanguageName(targetLang)}，无需翻译。\n\n${text}`;
+      // 特殊处理：当检测到英文文本且目标语言也是英文时，如果用户在浏览器中安装了中文语言，
+      // 那么我们假设用户可能想要翻译成中文
+      if (sourceLang === 'en' && navigator.language.toLowerCase().startsWith('zh')) {
+        console.log('用户首选语言是中文，尝试将英文翻译成中文');
+        sourceLang = 'en';
+        targetLang = 'zh';
+      } else {
+        return `文本已经是${getLanguageName(targetLang)}，无需翻译。\n\n${text}`;
+      }
     }
     
     // 对于短文本，即使源语言和目标语言相同，也继续尝试翻译
     if (isVeryShortText && sourceLang === targetLang) {
       console.log('短文本源语言与目标语言相同，但仍继续尝试翻译');
+      
+      // 特殊处理：当检测到英文文本且目标语言也是英文时，尝试翻译成用户首选语言
+      if (sourceLang === 'en' && navigator.language.toLowerCase().startsWith('zh')) {
+        console.log('用户首选语言是中文，短文本自动调整为中文翻译');
+        targetLang = 'zh';
+      }
     }
     
     // 针对不同语言组合定制翻译提示
     let translationPrompt;
     
-    if (targetLang === 'zh') {
-      // 英文翻译成中文
+    // 针对不同语言组合优化翻译提示
+    if ((sourceLang === 'en' && targetLang === 'zh') || 
+        (targetLang === 'zh' && (sourceLang !== 'zh' || isVeryShortText))) {
+      // 任何语言翻译成中文
       if (isVeryShortText) {
-        translationPrompt = `请将这段英文短语"${text}"翻译成中文。直接给出翻译结果，不要加引号，不要解释。`;
+        translationPrompt = `请将这段文本"${text}"翻译成中文。直接给出翻译结果，不要加引号，不要解释。`;
       } else {
-        translationPrompt = `你是专业翻译。请将以下英文文本翻译成中文，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
+        translationPrompt = `你是专业翻译。请将以下文本翻译成中文，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
       }
-    } else if (targetLang === 'en') {
-      // 中文翻译成英文
+    } else if ((sourceLang === 'zh' && targetLang === 'en') || 
+              (targetLang === 'en' && (sourceLang !== 'en' || isVeryShortText))) {
+      // 任何语言翻译成英文
       if (isVeryShortText) {
-        translationPrompt = `请将这段中文短语"${text}"翻译成英文。直接给出翻译结果，不要加引号，不要解释。`;
+        translationPrompt = `请将这段文本"${text}"翻译成英文。直接给出翻译结果，不要加引号，不要解释。`;
       } else {
-        translationPrompt = `你是专业翻译。请将以下中文文本翻译成英文，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
+        translationPrompt = `你是专业翻译。请将以下文本翻译成英文，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
       }
     } else {
       // 其他语言组合
@@ -2518,9 +2567,9 @@ async function detectLanguage(text) {
     return 'zh';
   }
   
-  // 检测日文字符
-  const japanesePattern = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/;
-  if (japanesePattern.test(text) && !chinesePattern.test(text)) {
+  // 检测日文字符 (这里保留日文特有的字符检测，去掉与中文重叠的部分)
+  const japanesePattern = /[\u3040-\u30ff\uff66-\uff9f]/;
+  if (japanesePattern.test(text)) {
     console.log('检测到日文字符');
     return 'ja';
   }
