@@ -130,6 +130,27 @@ MIT
 2. **用户标识符**：使用UUID为每个用户生成唯一标识符，用于后端服务识别用户和限流
 3. **后端代理服务**：所有对DeepSeek API的请求通过自建的后端服务代理转发
 
+### 后端代理服务说明
+
+后端代理服务部署在Render上，用于保护API密钥安全。
+
+### 关于Render免费版的休眠问题
+
+**注意：** Render免费版在15分钟不活动后会进入休眠状态，首次访问可能需要等待5-10秒才能唤醒服务。
+
+### 解决方案：使用UptimeRobot进行服务预热
+
+为了保持服务持续运行，可以使用免费的UptimeRobot服务定期ping健康检查端点：
+
+1. 访问 [UptimeRobot](https://uptimerobot.com/) 并创建免费账户
+2. 添加新的监控器：
+   - 监控类型：HTTP(s)
+   - 友好名称：DeepSeek代理服务
+   - URL：https://backend-proxy-kcsm.onrender.com/api/health
+   - 监控间隔：建议设置为5分钟
+
+这样UptimeRobot会每5分钟访问一次健康检查端点，防止服务进入休眠状态，从而减少用户第一次使用时的等待时间。
+
 ### 后端服务实现示例
 
 下面是一个使用Node.js和Express实现的后端代理服务示例:

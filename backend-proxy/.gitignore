@@ -21,6 +21,8 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 logs
 *.log
 
@@ -34,3 +36,9 @@ logs
 *.sln
 *.sw? 
 .vercel
+
+# Render specific
+.render-*
+
+# OS
+Thumbs.db

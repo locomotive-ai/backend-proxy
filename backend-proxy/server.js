@@ -96,10 +96,19 @@ app.post('/api/proxy', async (req, res) => {
 
 // 健康检查端点
 app.get('/api/health', (req, res) => {
+  // 添加CORS头部，确保该端点可以被任何外部服务(如UptimeRobot)访问
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // 返回详细的服务器状态信息
   res.status(200).json({ 
     status: 'ok', 
     message: 'DeepSeek API代理服务正常运行',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(), // 服务器运行时间(秒)
+    memory: process.memoryUsage(), // 内存使用情况
+    env: process.env.NODE_ENV || 'development' // 当前环境
   });
 });
 

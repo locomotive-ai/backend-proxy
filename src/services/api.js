@@ -10,8 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 const API_CONFIG = {
   // DeepSeek API 配置 - 直接使用这个URL让用户配置API密钥
   DEEPSEEK_API_URL: 'https://api.deepseek.com/v1/chat/completions',
-  // Render代理地址 - 部署后需要更新
-  PROXY_URL: 'https://deepseek-api-proxy.onrender.com/api/proxy',
+  // Render代理地址 - 已更新为Render分配的URL
+  PROXY_URL: 'https://backend-proxy-kcsm.onrender.com/api/proxy',
   MODEL: 'deepseek-chat',
   DEFAULT_TEMPERATURE: 0.7,
   // 关闭模拟数据，启用真实API调用
@@ -40,6 +40,31 @@ async function getUserIdentifier() {
       console.error("获取用户标识符出错:", error);
       // 出错时创建临时ID
       resolve(uuidv4());
+    }
+  });
+}
+
+/**
+ * 从storage获取API密钥
+ * @returns {Promise<string>} API密钥
+ */
+async function getApiKey() {
+  const defaultApiKey = '';
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.sync.get(['apiKey'], (result) => {
+        const apiKey = result.apiKey;
+        if (apiKey) {
+          console.log("API密钥已配置");
+          resolve(apiKey);
+        } else {
+          console.log("API密钥未配置");
+          resolve(defaultApiKey);
+        }
+      });
+    } catch (error) {
+      console.error("获取API密钥出错:", error);
+      resolve(defaultApiKey);
     }
   });
 }

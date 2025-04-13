@@ -565,8 +565,8 @@ function initializeAfterDOMLoaded() {
 
 // 添加调试信息到页面
 function addDebugInfoToPage() {
-  // 仅在开发模式下显示
-  const isDev = true; // 可以根据需要修改判断条件
+  // 设置为false以禁用调试信息
+  const isDev = false; // 禁用调试信息显示
   
   if (!isDev) return;
   
@@ -1337,8 +1337,14 @@ async function showReplyPanel() {
           const targetLang = languageSelector.value;
           translatedTextBox.textContent = '翻译中...';
           
+          // 从界面获取当前显示的原文，确保翻译的是用户看到的文本
+          // 这解决了全局selectedText可能已过时的问题
+          const actualText = originalTextBox.textContent.trim();
+          
+          console.log(`翻译文本长度: ${actualText.length}, 内容: ${actualText.substring(0, 20)}${actualText.length > 20 ? '...' : ''}`);
+          
           // 调用API翻译
-          const translationResult = await translateSelectedText(selectedText, targetLang);
+          const translationResult = await translateSelectedText(actualText, targetLang);
           translatedTextBox.textContent = translationResult || '翻译失败，请重试';
         } catch (error) {
           console.error('翻译出错:', error);
@@ -2284,34 +2290,98 @@ setInterval(ensurePanelIconConsistency, 500);
 
 // 翻译选中的文本
 async function translateSelectedText(text, targetLang) {
+  // 重要：首先检查输入文本的长度是否匹配界面显示的文本长度，避免错误传参
+  console.log(`要翻译的文本实际长度: ${text.length}`);
+  
+  // 确保文本长度正确，如果不匹配，尝试从界面获取正确的文本
+  // 比较selectedText全局变量和传入的text是否一致
+  if (text !== selectedText) {
+    console.warn('传入的文本与选中文本不匹配，可能是全局selectedText被错误更新');
+    
+    // 尝试获取界面上显示的原文
+    const originalTextBox = document.querySelector('#smart-reply-panel div[style*="原文"]');
+    if (originalTextBox && originalTextBox.textContent && originalTextBox.textContent.trim().length > 0) {
+      console.log('从界面获取原文文本');
+      text = originalTextBox.textContent.trim();
+      console.log(`修正后的文本长度: ${text.length}`);
+    }
+  }
+  
   if (!text || text.trim().length === 0) {
     return '没有文本可供翻译';
   }
   
   try {
-    console.log(`开始翻译文本到 ${targetLang} 语言`);
+    console.log(`开始翻译文本到 ${targetLang} 语言，文本长度: ${text.length}, 文本内容: ${text.substring(0, 30)}${text.length > 30 ? '...' : ''}`);
     
-    // 先检查文本是否已经是目标语言
-    const sourceLang = await detectLanguage(text);
-    console.log(`检测到源语言: ${sourceLang}`);
+    // 短文本处理 - 对于特别短的文本跳过语言检测直接翻译
+    const isVeryShortText = text.length < 15;
     
-    // 如果源语言与目标语言相同，直接返回原文
-    if (sourceLang === targetLang) {
+    // 如果不是特别短的文本，才进行语言检测
+    let sourceLang = 'en'; // 默认假设为英文
+    let skipLanguageCheck = false;
+    
+    if (isVeryShortText) {
+      console.log('文本很短，跳过语言检测，直接进行翻译');
+      skipLanguageCheck = true;
+      
+      // 对于短文本，基于目标语言做一个简单猜测
+      if (targetLang === 'zh') {
+        // 如果目标是中文，假设源语言是英文
+        sourceLang = 'en';
+      } else {
+        // 如果目标不是中文，则假设源语言是中文
+        sourceLang = 'zh';
+      }
+    } else {
+      // 较长的文本进行正常的语言检测
+      sourceLang = await detectLanguage(text);
+      console.log(`检测到源语言: ${sourceLang}`);
+    }
+    
+    // 即使源语言和目标语言相同，对于短文本我们也尝试翻译
+    // 因为语言检测可能不太准确，尤其是对短文本
+    if (sourceLang === targetLang && !isVeryShortText) {
+      console.log('源语言与目标语言相同，无需翻译');
       return `文本已经是${getLanguageName(targetLang)}，无需翻译。\n\n${text}`;
     }
     
-    // 构建更准确的翻译提示
-    let translationPrompt;
-    if (targetLang === 'zh') {
-      // 针对翻译到中文的特殊处理
-      translationPrompt = `你是一个专业翻译，请将以下${getLanguageName(sourceLang)}文本翻译成中文，保持原意并使表达自然流畅：\n\n${text}\n\n注意：请直接返回翻译结果，不要添加任何解释或前缀。`;
-    } else {
-      translationPrompt = `你是一个专业翻译，请将以下${getLanguageName(sourceLang)}文本翻译成${getLanguageName(targetLang)}，保持原意并使表达自然流畅：\n\n${text}\n\n注意：请直接返回翻译结果，不要添加任何解释或前缀。`;
+    // 对于短文本，即使源语言和目标语言相同，也继续尝试翻译
+    if (isVeryShortText && sourceLang === targetLang) {
+      console.log('短文本源语言与目标语言相同，但仍继续尝试翻译');
     }
+    
+    // 针对不同语言组合定制翻译提示
+    let translationPrompt;
+    
+    if (targetLang === 'zh') {
+      // 英文翻译成中文
+      if (isVeryShortText) {
+        translationPrompt = `请将这段英文短语"${text}"翻译成中文。直接给出翻译结果，不要加引号，不要解释。`;
+      } else {
+        translationPrompt = `你是专业翻译。请将以下英文文本翻译成中文，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
+      }
+    } else if (targetLang === 'en') {
+      // 中文翻译成英文
+      if (isVeryShortText) {
+        translationPrompt = `请将这段中文短语"${text}"翻译成英文。直接给出翻译结果，不要加引号，不要解释。`;
+      } else {
+        translationPrompt = `你是专业翻译。请将以下中文文本翻译成英文，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
+      }
+    } else {
+      // 其他语言组合
+      if (isVeryShortText) {
+        translationPrompt = `请将这段文本"${text}"从${getLanguageName(sourceLang)}翻译成${getLanguageName(targetLang)}。直接给出翻译结果，不要加引号，不要解释。`;
+      } else {
+        translationPrompt = `你是专业翻译。请将以下${getLanguageName(sourceLang)}文本翻译成${getLanguageName(targetLang)}，保持原意并使表达自然流畅：\n\n${text}\n\n直接返回翻译结果，不要加解释。`;
+      }
+    }
+    
+    console.log('发送翻译请求，prompt:', translationPrompt.substring(0, 100) + (translationPrompt.length > 100 ? '...' : ''));
     
     // 使用API翻译，添加超时处理
     const translationPromise = generateReply(
-      text,
+      text, // 使用原始文本，让API有更好的上下文
       'other', // 平台类型
       'professional', // 语气
       'other', // 场景
@@ -2321,18 +2391,106 @@ async function translateSelectedText(text, targetLang) {
     
     // 添加超时处理
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('翻译请求超时')), 20000)
+      setTimeout(() => reject(new Error('翻译请求超时')), 25000)
     );
     
     // 竞争Promise
+    console.log('等待翻译结果...');
     const translationResponse = await Promise.race([translationPromise, timeoutPromise]);
+    console.log('收到翻译响应:', translationResponse ? '成功' : '失败');
     
     // 处理API可能返回的前缀
     let cleanResponse = translationResponse || '翻译失败，请重试';
     
-    // 移除可能的前缀如"翻译结果："等
-    cleanResponse = cleanResponse.replace(/^(翻译结果：|翻译如下：|Translation:|Here is the translation:|Translated text:)/i, '').trim();
+    // 清理翻译结果
+    cleanResponse = cleanResponse
+      // 移除前缀
+      .replace(/^(翻译结果：|翻译如下：|Translation:|Here is the translation:|Translated text:|翻译:|Translation result:|The translation is:)/i, '')
+      // 移除尾部可能的注释
+      .replace(/(\(This is [^)]+\)|\[This is [^\]]+\]|（这是[^）]+）|「这是[^」]+」)$/i, '')
+      .trim();
     
+    // 如果是短文本，尝试提取引号中的内容
+    if (isVeryShortText) {
+      console.log('处理短文本翻译结果:', cleanResponse);
+      // 匹配各种可能的引号
+      const quotedMatch = cleanResponse.match(/"([^"]+)"|"([^"]+)"|「([^」]+)」|【([^】]+)】|'([^']+)'|\(([^)]+)\)|\[([^\]]+)\]/);
+      if (quotedMatch) {
+        // 找到第一个非空的捕获组
+        for (let i = 1; i < quotedMatch.length; i++) {
+          if (quotedMatch[i]) {
+            console.log('从引号中提取翻译结果:', quotedMatch[i]);
+            cleanResponse = quotedMatch[i];
+            break;
+          }
+        }
+      }
+    }
+    
+    // 对于特别短的文本，我们会处理一些常见情况
+    if (isVeryShortText) {
+      // 常见的短语翻译
+      const commonPhrases = {
+        // 英文到中文
+        'en-zh': {
+          'Thank you': '谢谢你',
+          'Thanks': '谢谢',
+          'Hello': '你好',
+          'Hi': '嗨',
+          'Yes': '是的',
+          'No': '不',
+          'OK': '好的',
+          'Good': '好',
+          'Bad': '坏',
+          'Sorry': '对不起',
+          'Welcome': '欢迎',
+          'Please': '请',
+          'Bye': '再见',
+          'Good morning': '早上好',
+          'Good afternoon': '下午好',
+          'Good evening': '晚上好',
+          'Good night': '晚安'
+        },
+        // 中文到英文
+        'zh-en': {
+          '谢谢': 'Thank you',
+          '谢谢你': 'Thank you',
+          '你好': 'Hello',
+          '嗨': 'Hi',
+          '是的': 'Yes',
+          '不': 'No',
+          '好的': 'OK',
+          '好': 'Good',
+          '坏': 'Bad',
+          '对不起': 'Sorry',
+          '欢迎': 'Welcome',
+          '请': 'Please',
+          '再见': 'Bye',
+          '早上好': 'Good morning',
+          '下午好': 'Good afternoon',
+          '晚上好': 'Good evening',
+          '晚安': 'Good night'
+        }
+      };
+      
+      // 检查常见短语
+      const langPair = sourceLang + '-' + targetLang;
+      if (langPair === 'en-zh' && commonPhrases['en-zh'][text]) {
+        console.log('使用预定义的常见英译中短语');
+        return commonPhrases['en-zh'][text];
+      } else if (langPair === 'zh-en' && commonPhrases['zh-en'][text]) {
+        console.log('使用预定义的常见中译英短语');
+        return commonPhrases['zh-en'][text];
+      }
+      
+      // 如果翻译结果与原文完全相同，视为专有名词
+      if (cleanResponse === text) {
+        console.log('翻译结果与原文相同，可能是专有名词');
+        return `${text} (可能为专有名词)`;
+      }
+    }
+    
+    console.log('最终翻译结果:', cleanResponse);
     return cleanResponse;
   } catch (error) {
     console.error('翻译文本时出错:', error);
@@ -2344,27 +2502,40 @@ async function translateSelectedText(text, targetLang) {
 async function detectLanguage(text) {
   // 简单的语言检测逻辑
   
+  // 如果文本为空或太短，无法可靠检测
+  if (!text || text.trim().length === 0) {
+    console.log('文本为空，无法检测语言');
+    return 'en'; // 默认为英文
+  }
+  
+  // 记录要检测的文本
+  console.log('检测语言的文本:', text.substring(0, 20) + (text.length > 20 ? '...' : ''));
+  
   // 检测中文字符
   const chinesePattern = /[\u4e00-\u9fa5]/;
   if (chinesePattern.test(text)) {
+    console.log('检测到中文字符');
     return 'zh';
   }
   
   // 检测日文字符
   const japanesePattern = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/;
   if (japanesePattern.test(text) && !chinesePattern.test(text)) {
+    console.log('检测到日文字符');
     return 'ja';
   }
   
   // 检测韩文字符
   const koreanPattern = /[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f\uffa0-\uffdf\u3200-\u321f]/;
   if (koreanPattern.test(text)) {
+    console.log('检测到韩文字符');
     return 'ko';
   }
   
   // 检测俄文字符
   const russianPattern = /[\u0400-\u04FF]/;
   if (russianPattern.test(text)) {
+    console.log('检测到俄文字符');
     return 'ru';
   }
   
@@ -2388,10 +2559,13 @@ async function detectLanguage(text) {
       const germanCount = germanChars ? germanChars.length : 0;
       
       if (spanishCount > 2) {
+        console.log('检测到西班牙语特征');
         return 'es';
       } else if (frenchCount > 2) {
+        console.log('检测到法语特征');
         return 'fr';
       } else if (germanCount > 2) {
+        console.log('检测到德语特征');
         return 'de';
       }
     } catch (error) {
@@ -2400,6 +2574,15 @@ async function detectLanguage(text) {
     }
   }
   
+  // 判断是否为英文文本
+  // 如果包含英文字母且不包含其他语言特征，则认为是英文
+  const englishPattern = /[a-zA-Z]/;
+  if (englishPattern.test(text)) {
+    console.log('检测到英文字符');
+    return 'en';
+  }
+  
+  console.log('无法确定语言，默认为英文');
   // 默认假设为英文
   return 'en';
 }
