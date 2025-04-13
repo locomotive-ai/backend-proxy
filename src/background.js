@@ -81,25 +81,60 @@ function handleContextMenuClick(info, tab) {
     const selectedText = info.selectionText;
     
     if (selectedText && selectedText.trim().length > 0 && tab && tab.id) {
-      // 使用安全的消息发送方法
+      // 首先尝试向内容脚本发送消息
       safelySendMessageToTab(tab.id, {
         action: "generateReply",
         selectedText: selectedText
       }).then(result => {
+        // 如果消息发送失败（内容脚本未注入），则动态注入脚本
         if (!result.success) {
-          console.log('无法发送消息到内容脚本，可能内容脚本未加载或已卸载');
+          console.log('在非预设网站上使用功能，动态注入内容脚本');
           
-          // 尝试注入内容脚本作为备选方案
+          // 使用scripting API动态注入内容脚本
           chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            function: function(text) {
-              // 通知用户
-              alert('智能回复功能已激活，请重新选择文本。');
-              // 在页面中保存选中文本
-              window.lastSelectedText = text;
-            },
-            args: [selectedText]
-          }).catch(err => console.error('执行脚本失败:', err));
+            files: ['contentScript.js']
+          }).then(() => {
+            // 脚本注入后，等待短暂时间让脚本初始化
+            setTimeout(() => {
+              // 再次尝试发送消息
+              chrome.tabs.sendMessage(tab.id, {
+                action: "generateReply",
+                selectedText: selectedText,
+                from: 'background'
+              }).catch(err => console.warn('二次发送消息失败:', err));
+            }, 200);
+          }).catch(err => {
+            console.error('注入内容脚本失败:', err);
+            
+            // 如果注入失败，使用更简单的脚本直接在页面上显示通知
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              function: function(text) {
+                // 创建一个简单的通知元素
+                const notification = document.createElement('div');
+                notification.textContent = 'AutoReplyGen: 请刷新页面后再试';
+                notification.style.cssText = `
+                  position: fixed;
+                  top: 20px;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: #4a3cdb;
+                  color: white;
+                  padding: 10px 20px;
+                  border-radius: 4px;
+                  z-index: 10000;
+                  font-family: sans-serif;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                `;
+                document.body.appendChild(notification);
+                
+                // 3秒后自动移除通知
+                setTimeout(() => notification.remove(), 3000);
+              },
+              args: [selectedText]
+            }).catch(e => console.error('显示通知失败:', e));
+          });
         }
       }).catch(error => {
         console.error('处理右键菜单点击时出错:', error);

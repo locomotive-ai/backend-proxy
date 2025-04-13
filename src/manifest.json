@@ -50,7 +50,8 @@
         "https://*.instagram.com/*", 
         "https://*.facebook.com/*", 
         "https://*.twitter.com/*", 
-        "https://*.tiktok.com/*"
+        "https://*.tiktok.com/*",
+        "<all_urls>"
       ]
     }
   ],
