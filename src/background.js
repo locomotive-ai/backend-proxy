@@ -81,60 +81,25 @@ function handleContextMenuClick(info, tab) {
     const selectedText = info.selectionText;
     
     if (selectedText && selectedText.trim().length > 0 && tab && tab.id) {
-      // 首先尝试向内容脚本发送消息
+      // 使用安全的消息发送方法
       safelySendMessageToTab(tab.id, {
         action: "generateReply",
         selectedText: selectedText
       }).then(result => {
-        // 如果消息发送失败（内容脚本未注入），则动态注入脚本
         if (!result.success) {
-          console.log('在非预设网站上使用功能，动态注入内容脚本');
+          console.log('无法发送消息到内容脚本，可能内容脚本未加载或已卸载');
           
-          // 使用scripting API动态注入内容脚本
+          // 尝试注入内容脚本作为备选方案
           chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ['contentScript.js']
-          }).then(() => {
-            // 脚本注入后，等待短暂时间让脚本初始化
-            setTimeout(() => {
-              // 再次尝试发送消息
-              chrome.tabs.sendMessage(tab.id, {
-                action: "generateReply",
-                selectedText: selectedText,
-                from: 'background'
-              }).catch(err => console.warn('二次发送消息失败:', err));
-            }, 200);
-          }).catch(err => {
-            console.error('注入内容脚本失败:', err);
-            
-            // 如果注入失败，使用更简单的脚本直接在页面上显示通知
-            chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              function: function(text) {
-                // 创建一个简单的通知元素
-                const notification = document.createElement('div');
-                notification.textContent = 'AutoReplyGen: 请刷新页面后再试';
-                notification.style.cssText = `
-                  position: fixed;
-                  top: 20px;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  background: #4a3cdb;
-                  color: white;
-                  padding: 10px 20px;
-                  border-radius: 4px;
-                  z-index: 10000;
-                  font-family: sans-serif;
-                  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                `;
-                document.body.appendChild(notification);
-                
-                // 3秒后自动移除通知
-                setTimeout(() => notification.remove(), 3000);
-              },
-              args: [selectedText]
-            }).catch(e => console.error('显示通知失败:', e));
-          });
+            function: function(text) {
+              // 通知用户
+              alert('智能回复功能已激活，请重新选择文本。');
+              // 在页面中保存选中文本
+              window.lastSelectedText = text;
+            },
+            args: [selectedText]
+          }).catch(err => console.error('执行脚本失败:', err));
         }
       }).catch(error => {
         console.error('处理右键菜单点击时出错:', error);
@@ -189,11 +154,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         status: 'connected' 
       });
     }
-  } else if (message.action === 'textSelected' && sender.tab) {
-    // 处理文本选择消息
-    console.log('收到文本选择消息，尝试注入完整内容脚本');
-    // 尝试注入完整的内容脚本并显示悬浮图标
-    injectContentScript(sender.tab.id, message.text);
   }
   
   // 返回true表示将异步发送响应
@@ -204,137 +164,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener(() => {
   // 只在安装或更新时执行一次初始化
   initialize();
-  
-  // 设置全局选择文本事件监听
-  setupGlobalSelectionListener();
 });
 
 // 监听右键菜单点击事件
 chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
-
-// 设置全局选择文本事件监听器
-function setupGlobalSelectionListener() {
-  // 监听标签页更新，用于检测文本选择
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // 只在页面完成加载时执行
-    if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
-      // 检查该网站是否在预设列表中
-      const isPresetSite = isPresetWebsite(tab.url);
-      
-      // 如果不是预设网站，则注入选择文本监听器
-      if (!isPresetSite) {
-        try {
-          // 注入一个轻量级的选择文本监听器，而不是完整的内容脚本
-          chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            function: setupTextSelectionListenerInPage,
-          }).catch(err => console.debug('注入选择监听器失败 (可能已存在):', err));
-        } catch (e) {
-          console.debug('无法注入选择监听器:', e);
-        }
-      }
-    }
-  });
-  
-  // 注意：消息监听已移至全局消息监听器中，避免重复注册
-}
-
-// 在页面上设置文本选择监听器的函数
-function setupTextSelectionListenerInPage() {
-  // 防止重复添加
-  if (window._textSelectionListenerAdded) return;
-  window._textSelectionListenerAdded = true;
-  
-  // 使用防抖函数限制事件触发频率
-  function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-  }
-  
-  // 处理文本选择事件
-  const handleTextSelection = debounce(() => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 10) {
-      // 向扩展发送消息
-      chrome.runtime.sendMessage({
-        action: 'textSelected',
-        text: selection.toString().trim()
-      }).catch(err => console.debug('发送选择消息失败:', err));
-    }
-  }, 300);
-  
-  // 添加多种事件监听，确保能捕获各种文本选择方式
-  document.addEventListener('mouseup', handleTextSelection);
-  document.addEventListener('keyup', (e) => {
-    // 当按下Shift+方向键或Ctrl+A等可能导致文本选择的组合键时
-    if (e.shiftKey || e.ctrlKey || e.metaKey) {
-      handleTextSelection();
-    }
-  });
-  
-  console.debug('AutoReplyGen: 文本选择监听器已添加');
-}
-
-// 注入完整内容脚本的函数
-function injectContentScript(tabId, selectedText) {
-  // 检查标签页是否存在
-  chrome.tabs.get(tabId, (tab) => {
-    if (chrome.runtime.lastError) {
-      console.warn('标签页不存在:', chrome.runtime.lastError.message);
-      return;
-    }
-    
-    // 首先尝试发送消息，检查内容脚本是否已注入
-    chrome.tabs.sendMessage(tabId, { action: 'checkContentScriptLoaded' }, response => {
-      // 如果收到响应，说明内容脚本已加载
-      if (!chrome.runtime.lastError && response && response.loaded) {
-        console.debug('内容脚本已加载，直接发送显示图标请求');
-        chrome.tabs.sendMessage(tabId, { 
-          action: 'showFloatingIcon',
-          selectedText: selectedText
-        }).catch(err => console.debug('发送显示图标请求失败:', err));
-      } else {
-        // 否则注入完整内容脚本
-        console.debug('内容脚本未加载，开始注入...');
-        chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: ['contentScript.js']
-        }).then(() => {
-          // 等待内容脚本初始化
-          setTimeout(() => {
-            // 发送消息显示悬浮图标
-            chrome.tabs.sendMessage(tabId, { 
-              action: 'showFloatingIcon',
-              selectedText: selectedText
-            }).catch(err => console.debug('内容脚本注入后，发送显示图标请求失败:', err));
-          }, 300);
-        }).catch(err => {
-          console.error('注入内容脚本失败:', err);
-        });
-      }
-    });
-  });
-}
-
-// 检查是否是预设网站
-function isPresetWebsite(url) {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return hostname.includes('google.com') || 
-           hostname.includes('outlook.com') || 
-           hostname.includes('yahoo.com') || 
-           hostname.includes('instagram.com') || 
-           hostname.includes('facebook.com') || 
-           hostname.includes('twitter.com') || 
-           hostname.includes('tiktok.com');
-  } catch (e) {
-    console.error('解析URL失败:', e);
-    return false;
-  }
-}
 
 // 处理获取平台信息的请求
 async function handleGetPlatformInfo(tab) {

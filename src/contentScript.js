@@ -954,16 +954,16 @@ function showFloatingIcon(rect) {
     if (rect.width < 100) {
       // 使用选区的相对位置，加上滚动偏移
       top = rect.bottom + 5;
-      left = rect.left + (rect.width / 2) - 20; // 图标宽度40px，居中放置
+      left = rect.left + (rect.width / 2) - 30; // 图标宽度60px，居中放置
     } else {
       // 否则放在选区右下角
       top = rect.bottom + 5;
-      left = rect.right - 20;
+      left = rect.right - 30;
     }
     
     // 防止图标超出视窗
-    if (left + 40 > windowWidth) {
-      left = windowWidth - 45;
+    if (left + 60 > windowWidth) {
+      left = windowWidth - 70;
     }
     if (left < 0) {
       left = 5;
@@ -971,8 +971,8 @@ function showFloatingIcon(rect) {
     
     // 确保图标在视窗内
     // 如果图标会超出屏幕底部，改为显示在选区上方
-    if (top + 40 > windowHeight) {
-      top = rect.top - 45; // 放在选区上方
+    if (top + 60 > windowHeight) {
+      top = rect.top - 65; // 放在选区上方
     }
     
     // 如果图标会超出屏幕顶部，改回放在选区下方但确保在视窗内
@@ -986,8 +986,8 @@ function showFloatingIcon(rect) {
       z-index: 2147483646 !important;
       top: ${top}px !important;
       left: ${left}px !important;
-      width: 40px !important;
-      height: 40px !important;
+      width: 60px !important;
+      height: 60px !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -1003,8 +1003,8 @@ function showFloatingIcon(rect) {
     const img = document.createElement('img');
     img.src = chrome.runtime.getURL('assets/icon48.png');
     img.style.cssText = `
-      width: 36px !important;
-      height: 36px !important;
+      width: 48px !important;
+      height: 48px !important;
       object-fit: contain !important;
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)) !important;
     `;
@@ -2167,68 +2167,34 @@ function showNotification(message) {
   }, 3000);
 }
 
-// 标记内容脚本已加载
-window._contentScriptLoaded = true;
-
-// 处理来自后台脚本的消息
+// 监听消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 立即响应以保持连接
+  try {
+    sendResponse({ received: true });
+  } catch (error) {
+    console.warn('发送立即响应时出错:', error);
+  }
+  
   console.log('内容脚本收到消息:', message);
   
-  // 检查内容脚本加载状态
-  if (message.action === 'checkContentScriptLoaded') {
-    sendResponse({ loaded: true });
-    return true;
-  }
-  
-  // 显示悬浮图标
-  if (message.action === 'showFloatingIcon' && message.selectedText) {
-    // 设置全局选中文本
-    selectedText = message.selectedText;
-    
-    // 获取选中文本的位置
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      
-      // 显示悬浮图标
-      showFloatingIcon(rect);
-    } else {
-      // 如果无法获取选择范围，则在页面中间显示图标
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-      
-      const dummyRect = {
-        left: viewportWidth / 2,
-        top: viewportHeight / 2,
-        right: viewportWidth / 2,
-        bottom: viewportHeight / 2
-      };
-      
-      showFloatingIcon(dummyRect);
-    }
-    
-    sendResponse({ success: true });
-    return true;
-  }
-  
-  // 生成回复
-  if (message.action === "generateReply") {
+  if (message.action === 'generateReply') {
+    // 处理右键菜单的生成回复请求
     console.log('收到生成回复请求:', message);
     
-    // 如果提供了选中文本，则使用它
-    if (message.selectedText) {
-      selectedText = message.selectedText;
-    }
+    // 保存选中的文本
+    selectedText = message.selectedText || '';
     
     // 显示回复面板
     showReplyPanel();
-    
-    sendResponse({ success: true });
-    return true;
+  } 
+  else if (message.action === 'platformInfoResult') {
+    // 处理从后台脚本返回的平台信息
+    console.log('收到平台信息结果:', message.platformInfo);
+    if (message.platformInfo) {
+      currentPlatform = message.platformInfo.type || 'other';
+    }
   }
-  
-  // ... 处理其他消息 ...
   
   // 返回true表示会异步发送响应
   return true;
