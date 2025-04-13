@@ -1,0 +1,29 @@
+{
+  "compliment": [
+    "love", "amazing", "impressive", "great", "wonderful", "excellent", "outstanding", "好喜欢", "赞", 
+    "喜欢", "太棒了", "厉害", "优秀", "精彩", "出色", "impressive", "beautiful", "perfect", "wow", "superb"
+  ],
+  "complaint": [
+    "refund", "disappointed", "terrible", "horrible", "bad", "issue", "problem", "complaint", "fail", 
+    "坏了", "差评", "退款", "不满意", "投诉", "失望", "问题", "质量差", "disappointing", "poor", "worse"
+  ],
+  "inquiry": [
+    "how to", "where", "when", "what", "why", "which", "who", "delivery", "shipping", "track", "status", 
+    "咨询", "怎么", "如何", "哪里", "什么时候", "多久", "什么", "为什么", "送货", "物流", "question", "help"
+  ],
+  "gratitude": [
+    "thank", "thanks", "grateful", "appreciate", "谢谢", "感谢", "感激", "多谢", "appreciate", "thankful"
+  ],
+  "greeting": [
+    "hello", "hi", "hey", "morning", "afternoon", "evening", "你好", "早上好", "下午好", "晚上好", "greetings"
+  ],
+  "farewell": [
+    "bye", "goodbye", "see you", "talk to you later", "再见", "拜拜", "回头见", "下次再聊", "later", "cya"
+  ],
+  "agreement": [
+    "agree", "yes", "exactly", "correct", "right", "absolutely", "同意", "是的", "没错", "对", "正确"
+  ],
+  "disagreement": [
+    "disagree", "no", "wrong", "incorrect", "not right", "不同意", "不是", "错误", "不对", "不正确"
+  ]
+} 

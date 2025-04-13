@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>智能回复生成器沙盒</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; object-src 'self'">
+  <script>
+    // 沙盒环境中可执行的代码
+    window.addEventListener('message', function(event) {
+      // 验证消息来源
+      if (event.origin !== chrome.runtime.getURL('').slice(0, -1)) {
+        console.log('拒绝来自未知来源的消息:', event.origin);
+        return;
+      }
+
+      // 处理消息
+      if (event.data && event.data.action) {
+        console.log('沙盒收到消息:', event.data.action);
+        
+        switch(event.data.action) {
+          case 'evalScript':
+            try {
+              // 使用字符串处理而不是动态执行
+              // 这里我们根据接收的指令进行特定的操作，而非直接执行代码
+              let result = null;
+              
+              // 解析指令并执行预定义的操作
+              const instruction = event.data.instruction || '';
+              const params = event.data.params || {};
+              
+              if (instruction === 'processText') {
+                result = processText(params.text, params.operation);
+              } else if (instruction === 'getElementInfo') {
+                result = {
+                  width: window.innerWidth,
+                  height: window.innerHeight,
+                  userAgent: navigator.userAgent
+                };
+              } else if (instruction === 'calculateResult') {
+                result = calculateResult(params);
+              }
+              
+              console.log('安全处理成功');
+              
+              // 返回结果
+              event.source.postMessage({
+                id: event.data.id,
+                success: true,
+                result: result
+              }, event.origin);
+            } catch (error) {
+              console.error('安全处理失败:', error);
+              
+              // 返回错误
+              event.source.postMessage({
+                id: event.data.id,
+                success: false,
+                error: error.toString()
+              }, event.origin);
+            }
+            break;
+            
+          case 'ping':
+            // 用于测试沙盒是否正常工作
+            event.source.postMessage({
+              id: event.data.id,
+              action: 'pong',
+              success: true
+            }, event.origin);
+            break;
+        }
+      }
+    }, false);
+
+    // 文本处理函数
+    function processText(text, operation) {
+      if (!text) return '';
+      
+      switch (operation) {
+        case 'uppercase':
+          return text.toUpperCase();
+        case 'lowercase':
+          return text.toLowerCase();
+        case 'trim':
+          return text.trim();
+        case 'count':
+          return text.length;
+        default:
+          return text;
+      }
+    }
+    
+    // 计算函数
+    function calculateResult(params) {
+      const { operation, values } = params;
+      
+      if (!Array.isArray(values)) {
+        return null;
+      }
+      
+      switch (operation) {
+        case 'sum':
+          return values.reduce((acc, val) => acc + val, 0);
+        case 'average':
+          return values.length ? values.reduce((acc, val) => acc + val, 0) / values.length : 0;
+        case 'max':
+          return Math.max(...values);
+        case 'min':
+          return Math.min(...values);
+        default:
+          return null;
+      }
+    }
+
+    // 通知父窗口沙盒已准备好
+    window.onload = function() {
+      try {
+        console.log('沙盒环境已加载完成');
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ 
+            status: 'ready',
+            source: 'sandbox'
+          }, '*');
+        }
+      } catch (e) {
+        console.error('通知父窗口失败:', e);
+      }
+    };
+  </script>
+</head>
+<body>
+  <div>智能回复生成器沙盒环境</div>
+</body>
+</html>

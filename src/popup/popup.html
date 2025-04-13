@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoReplyGen</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #ffffff;
+      color: #333;
+      min-width: 750px; /* 设置最小宽度以适应双栏布局 */
+      width: 800px; /* 固定宽度 */
+    }
+    
+    .container {
+      width: 100%;
+      margin: 0;
+      background-color: #fff;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    
+    .header {
+      padding: 16px;
+      background: #6247ED;
+      color: #fff;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .content {
+      padding: 16px;
+      box-sizing: border-box;
+      width: 100%;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #eaeaea;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 14px;
+      background-color: #fff;
+    }
+    
+    select.form-control {
+      appearance: none;
+      background-image: url('data:image/svg+xml;utf8,<svg fill="%23555" height="24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 32px;
+    }
+    
+    textarea.form-control {
+      min-height: 80px;
+      resize: vertical;
+    }
+    
+    .btn {
+      display: inline-block;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #6247ED;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    
+    .btn:hover {
+      background: #5138D1;
+      box-shadow: 0 4px 12px rgba(98, 71, 237, 0.25);
+    }
+    
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #ebebeb;
+    }
+    
+    .btn-block {
+      display: block;
+      width: 100%;
+    }
+    
+    .form-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 24px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 32px 16px;
+      color: #666;
+    }
+    
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    
+    .alert-error {
+      background-color: #fdecea;
+      color: #b71c1c;
+    }
+    
+    .alert-success {
+      background-color: #e8f5e9;
+      color: #1b5e20;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: #6247ED;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* 双栏布局样式 */
+    .result-container {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 16px;
+      gap: 20px;
+    }
+    
+    .result-thinking,
+    .result-content {
+      width: 50%;
+      box-sizing: border-box;
+    }
+    
+    .result-section {
+      position: relative;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+      border: 1px solid #eaeaea;
+      border-radius: 8px;
+      padding: 16px;
+      background-color: #fff;
+      height: 100%;
+    }
+    
+    .result-section textarea {
+      width: 100%;
+      min-height: 280px;
+      box-sizing: border-box;
+      border: none;
+      outline: none;
+      resize: vertical;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      background-color: transparent;
+      padding: 0;
+    }
+    
+    .result-section-title {
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #333;
+      font-size: 16px;
+    }
+    
+    /* UI元素样式 */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #eaeaea;
+      margin-bottom: 16px;
+    }
+    
+    .tab {
+      padding: 12px 20px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      margin-right: 8px;
+    }
+    
+    .tab.active {
+      color: #6247ED;
+      border-bottom-color: #6247ED;
+    }
+    
+    /* 选择器组样式 */
+    .selector-group {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .selector-group > div {
+      flex: 1;
+    }
+    
+    .select-container {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    
+    .select-label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    .select-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #eaeaea;
+      border-radius: 8px;
+      appearance: none;
+      background-image: url('data:image/svg+xml;utf8,<svg fill="%23555" height="24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-color: #fff;
+    }
+    
+    .generate-btn {
+      background: #6247ED;
+      color: white;
+      font-weight: 500;
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      font-size: 15px;
+      margin-top: 16px;
+      transition: all 0.2s ease;
+    }
+    
+    .generate-btn:hover {
+      background: #5138D1;
+      box-shadow: 0 4px 12px rgba(98, 71, 237, 0.25);
+    }
+    
+    .copy-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: #6247ED;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    
+    .copy-btn:hover {
+      background: #5138D1;
+    }
+    
+    /* 消息样式 */
+    .message {
+      padding: 16px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    
+    /* 全局样式修复 */
+    input, textarea, select, button {
+      font-family: inherit;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    /* 文本框样式 */
+    .text-input {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      resize: vertical;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 标题栏 -->
+    <div class="header">
+      <h1>AutoReplyGen</h1>
+    </div>
+    
+    <!-- 内容区域 -->
+    <div class="content">
+      <!-- 标签页 -->
+      <div class="tabs">
+        <div class="tab active" data-tab="reply">回复生成</div>
+        <div class="tab" data-tab="settings">设置</div>
+        <div class="tab" data-tab="subscription">订阅</div>
+      </div>
+      
+      <!-- 回复生成面板 -->
+      <div class="tab-content" id="reply-panel">
+        <!-- 免费版使用限制提示 -->
+        <div class="subscription-banner" id="free-limit-banner">
+          <div class="subscription-info">
+            <span class="usage-count">今日已用: <span id="usage-count">0</span>/3</span>
+            <span class="subscription-type free">免费版</span>
+          </div>
+          <button class="btn btn-small btn-upgrade" id="upgrade-btn-banner">升级专业版</button>
+        </div>
+        
+        <!-- 输入区域 -->
+        <div class="form-group">
+          <textarea class="form-control" id="input-text" placeholder="在此输入需要回复的内容..."></textarea>
+        </div>
+        
+        <!-- 选择器组 -->
+        <div class="selectors-container">
+          <div class="selector-item">
+            <label>平台</label>
+            <select class="form-control" id="platform-select">
+              <option value="auto" selected>自动检测</option>
+              <option value="email">邮件</option>
+              <option value="tiktok">TikTok</option>
+              <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          
+          <div class="selector-item">
+            <label>场景</label>
+            <select class="form-control" id="scenario-select">
+              <option value="auto" selected>自动检测</option>
+              <option value="compliment">夸夸</option>
+              <option value="complaint">不满</option>
+              <option value="inquiry">咨询</option>
+              <option value="gratitude">感谢</option>
+              <option value="agreement">协议</option>
+              <option value="instruction">指南</option>
+              <option value="greeting">问候</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          
+          <div class="selector-item">
+            <label>语气</label>
+            <select class="form-control" id="tone-select">
+              <option value="friendly">闺蜜风</option>
+              <option value="professional" selected>商务风</option>
+              <option value="funny">搞笑风</option>
+              <option value="casual">随意风</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- 生成按钮 -->
+        <div class="action-buttons">
+          <button class="btn" id="generate-btn">生成回复</button>
+        </div>
+        
+        <!-- 结果展示区域 -->
+        <div class="result-container">
+          <!-- 回复思路 -->
+          <div class="result-column">
+            <h3>回复思路</h3>
+            <div class="result-box">
+              <textarea id="thought-textarea" placeholder="生成的回复思路将显示在这里..."></textarea>
+            </div>
+          </div>
+          
+          <!-- 回复内容 -->
+          <div class="result-column">
+            <h3>回复内容</h3>
+            <div class="result-box">
+              <textarea id="reply-textarea" placeholder="生成的回复内容将显示在这里..."></textarea>
+              <button class="btn copy-btn" id="copy-btn">一键复制</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 设置面板 -->
+      <div class="tab-content hidden" id="settings-panel">
+        <!-- 订阅状态显示 -->
+        <div class="subscription-status">
+          <div class="status-label">当前订阅:</div>
+          <div class="status-value" id="subscription-status-display">免费版</div>
+        </div>
+        
+        <!-- API密钥设置 -->
+        <div class="form-group">
+          <label>API密钥设置</label>
+          <input type="password" class="form-control" id="api-key" placeholder="请输入您的API密钥">
+        </div>
+        <div class="form-actions">
+          <button class="btn" id="save-settings">保存设置</button>
+        </div>
+      </div>
+      
+      <!-- 订阅面板 -->
+      <div class="tab-content hidden" id="subscription-panel">
+        <div class="subscription-header">
+          <h2>选择适合您的方案</h2>
+          <p>升级到专业版，解锁更多功能和无限生成次数</p>
+        </div>
+        
+        <div class="subscription-plans">
+          <!-- 免费版 -->
+          <div class="plan">
+            <div class="plan-header">
+              <h3>免费版</h3>
+              <div class="plan-price">¥0</div>
+            </div>
+            <div class="plan-features">
+              <ul>
+                <li>每日3次生成限制</li>
+                <li>基础场景识别</li>
+                <li>普通回复质量</li>
+                <li>基础客户支持</li>
+              </ul>
+            </div>
+            <div class="plan-action">
+              <div class="current-plan" id="free-plan-label">当前方案</div>
+            </div>
+          </div>
+          
+          <!-- 专业版-月付 -->
+          <div class="plan highlighted">
+            <div class="plan-badge">推荐</div>
+            <div class="plan-header">
+              <h3>专业版</h3>
+              <div class="plan-price">¥19.9<span class="price-period">/月</span></div>
+            </div>
+            <div class="plan-features">
+              <ul>
+                <li>无限生成次数</li>
+                <li>高级场景识别</li>
+                <li>优质回复内容</li>
+                <li>优先客户支持</li>
+                <li>更多语气选项</li>
+              </ul>
+            </div>
+            <div class="plan-action">
+              <button class="btn btn-primary" id="monthly-plan-btn" data-plan="monthly">立即订阅</button>
+              <div class="current-plan hidden" id="monthly-plan-label">当前方案</div>
+            </div>
+          </div>
+          
+          <!-- 专业版-年付 -->
+          <div class="plan">
+            <div class="plan-badge">优惠20%</div>
+            <div class="plan-header">
+              <h3>专业版</h3>
+              <div class="plan-price">¥189<span class="price-period">/年</span></div>
+            </div>
+            <div class="plan-features">
+              <ul>
+                <li>无限生成次数</li>
+                <li>高级场景识别</li>
+                <li>优质回复内容</li>
+                <li>优先客户支持</li>
+                <li>更多语气选项</li>
+                <li>批量生成功能</li>
+              </ul>
+            </div>
+            <div class="plan-action">
+              <button class="btn btn-primary" id="yearly-plan-btn" data-plan="yearly">立即订阅</button>
+              <div class="current-plan hidden" id="yearly-plan-label">当前方案</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="subscription-footer">
+          <p>订阅问题? <a href="#" id="contact-support">联系客服</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 超出使用限制弹窗 -->
+  <div class="modal hidden" id="limit-reached-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>使用次数已达上限</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p>您今日的免费使用次数已达上限(3次/天)</p>
+        <p>升级到专业版享受无限使用次数!</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="upgrade-from-modal">立即升级</button>
+        <button class="btn btn-secondary" id="close-modal-btn">取消</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html> 
