@@ -54,29 +54,21 @@ function initialize() {
 // 安全地发送消息到内容脚本
 function safelySendMessageToTab(tabId, message) {
   return new Promise((resolve, reject) => {
-    // 首先检查tab是否存在
-    chrome.tabs.get(tabId, (tab) => {
-      if (chrome.runtime.lastError) {
-        console.warn(`Tab ${tabId} 不存在:`, chrome.runtime.lastError.message);
-        return reject(new Error(`Tab ${tabId} 不存在`));
-      }
-      
-      // 然后尝试发送消息
-      try {
-        chrome.tabs.sendMessage(tabId, { ...message, from: 'background' }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.warn(`向Tab ${tabId} 发送消息失败:`, chrome.runtime.lastError.message);
-            // 不要reject，因为这可能是正常的
-            resolve({ success: false, error: chrome.runtime.lastError.message });
-          } else {
-            resolve({ success: true, response });
-          }
-        });
-      } catch (error) {
-        console.error('发送消息时出错:', error);
-        resolve({ success: false, error: error.message });
-      }
-    });
+    // 使用activeTab权限，直接发送消息到标签页
+    try {
+      chrome.tabs.sendMessage(tabId, { ...message, from: 'background' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn(`向Tab ${tabId} 发送消息失败:`, chrome.runtime.lastError.message);
+          // 不要reject，因为这可能是正常的
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve({ success: true, response });
+        }
+      });
+    } catch (error) {
+      console.error('发送消息时出错:', error);
+      resolve({ success: false, error: error.message });
+    }
   });
 }
 

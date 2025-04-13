@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "background": {
     "service_worker": "background.js"
@@ -26,20 +27,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://*.google.com/*",
-        "https://*.outlook.com/*",
-        "https://*.live.com/*",
-        "https://*.gmail.com/*",
-        "https://*.mail.yahoo.com/*",
-        "https://*.facebook.com/*",
-        "https://*.twitter.com/*",
-        "https://*.instagram.com/*",
-        "https://*.tiktok.com/*",
-        "https://*.douyin.com/*",
-        "https://*.linkedin.com/*",
-        "https://*.reddit.com/*"
-      ],
+      "matches": ["<all_urls>"],
       "js": ["contentScript.js"],
       "run_at": "document_end"
     }
@@ -47,20 +35,7 @@
   "web_accessible_resources": [
     {
       "resources": ["sandbox.html", "assets/*", "resources/*"],
-      "matches": [
-        "https://*.google.com/*",
-        "https://*.outlook.com/*",
-        "https://*.live.com/*",
-        "https://*.gmail.com/*",
-        "https://*.mail.yahoo.com/*",
-        "https://*.facebook.com/*", 
-        "https://*.twitter.com/*",
-        "https://*.instagram.com/*",
-        "https://*.tiktok.com/*",
-        "https://*.douyin.com/*",
-        "https://*.linkedin.com/*",
-        "https://*.reddit.com/*"
-      ]
+      "matches": ["https://*/*", "http://*/*"]
     }
   ],
   "content_security_policy": {
