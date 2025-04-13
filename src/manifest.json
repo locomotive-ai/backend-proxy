@@ -6,11 +6,7 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "activeTab",
-    "tabs"
-  ],
-  "host_permissions": [
-    "<all_urls>"
+    "activeTab"
   ],
   "background": {
     "service_worker": "background.js"
@@ -30,7 +26,20 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "https://*.google.com/*",
+        "https://*.outlook.com/*",
+        "https://*.live.com/*",
+        "https://*.gmail.com/*",
+        "https://*.mail.yahoo.com/*",
+        "https://*.facebook.com/*",
+        "https://*.twitter.com/*",
+        "https://*.instagram.com/*",
+        "https://*.tiktok.com/*",
+        "https://*.douyin.com/*",
+        "https://*.linkedin.com/*",
+        "https://*.reddit.com/*"
+      ],
       "js": ["contentScript.js"],
       "run_at": "document_end"
     }
@@ -38,7 +47,20 @@
   "web_accessible_resources": [
     {
       "resources": ["sandbox.html", "assets/*", "resources/*"],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "https://*.google.com/*",
+        "https://*.outlook.com/*",
+        "https://*.live.com/*",
+        "https://*.gmail.com/*",
+        "https://*.mail.yahoo.com/*",
+        "https://*.facebook.com/*", 
+        "https://*.twitter.com/*",
+        "https://*.instagram.com/*",
+        "https://*.tiktok.com/*",
+        "https://*.douyin.com/*",
+        "https://*.linkedin.com/*",
+        "https://*.reddit.com/*"
+      ]
     }
   ],
   "content_security_policy": {
